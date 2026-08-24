@@ -1,3 +1,7 @@
+/*
+ * Copyright 2026, Kris Beazley GLToogle@epluribusunix.net
+ * All rights reserved. Distributed under the terms of the MIT license.
+ */
 
 
 #include <Application.h>
@@ -17,11 +21,10 @@
 
 
 namespace AppInfo {
-	static const char* const APP_NAME = "Test";
-    static const char* const VERSION_STRING = "v1.0.1";
+	static const char* const APP_NAME = "GLToogle";
+    static const char* const VERSION_STRING = "v1.0.0";
 
 }
-
 
 // =============================================================================
 // Update Checker
@@ -80,31 +83,27 @@ static int32 BackgroundUpdateChecker(void* data) {
         
 
 
-        if (remoteFlattened > currentFlattened) {
-             printf("[UpdateChecker] Update matched! Checking alert preference flags...\n");
+			if (remoteFlattened > currentFlattened) {
+			    printf("[UpdateChecker] Update found! Sending notification...\n");
+			
+			    BNotification updateAlert(B_INFORMATION_NOTIFICATION);
+			    updateAlert.SetGroup(currentAppStr);
+			    updateAlert.SetTitle("Update Available");
+			    
+			    BString alertContent;
+			    // Added spaces around currentAppStr so it reads: "of GLToogle is available!"
+			    alertContent << "A newer version of " << currentAppStr << " is available! (" << remoteVersionStr << ")";
+			    updateAlert.SetContent(alertContent.String());
+			    
+			    updateAlert.Send();
+			    printf("[UpdateChecker] Toast notification sent successfully.\n");
+			} else {
+			    printf("[UpdateChecker] Client binary is up to date.\n");
+			}
 
-           
-                printf("[UpdateChecker] Suppressing desktop alert toast\n");
-                return B_OK; 
-
-
-            BNotification updateAlert(B_INFORMATION_NOTIFICATION);
-            updateAlert.SetGroup(currentAppStr);
-            updateAlert.SetTitle("Update Available");
-            
-            BString alertContent;
-            alertContent << "A newer version of" << currentAppStr <<  "is available! (" << remoteVersionStr 
-                         << ")";
-            updateAlert.SetContent(alertContent.String());
-            
-            updateAlert.Send();
-             printf("[UpdateChecker] Toast notification sent successfully.\n");
-        } else {
-            printf("[UpdateChecker] Math complete: Client binary is already completely up to date.\n");
-        }
-    } else {
-        printf("[UpdateChecker] CRITICAL ERR: Raw text data read from pipe buffer was empty!\n");
-    }
+		    } else {
+		        printf("[UpdateChecker] CRITICAL ERR: Raw text data read from pipe buffer was empty!\n");
+		    }
     
     return B_OK;
 }
