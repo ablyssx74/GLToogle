@@ -22,7 +22,7 @@
 
 namespace AppInfo {
 	static const char* const APP_NAME = "GLToogle";
-    static const char* const VERSION_STRING = "v1.0.0";
+    static const char* const VERSION_STRING = "v1.0.1";
 
 }
 
