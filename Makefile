@@ -12,6 +12,8 @@ VERSION = 1.0.1
 REVISION = 1
 PACKAGE_DIR := build/package
 CXX = g++
+CXXFLAGS = -std=c++17 -O3 -Wall
+INCLUDES = 
 ARCH = x86_64
 
 GUI_SRCS = $(TARGET).cpp
