@@ -1,5 +1,5 @@
 /*
- * Copyright 2026, Kris Beazley GLToogle@epluribusunix.net
+ * Copyright 2026, ablyss GLToogle@epluribusunix.net
  * All rights reserved. Distributed under the terms of the MIT license.
  */
 
@@ -22,7 +22,7 @@
 
 namespace AppInfo {
 	static const char* const APP_NAME = "GLToogle";
-    static const char* const VERSION_STRING = "v1.0.1";
+    static const char* const VERSION_STRING = "v1.0.2";
 
 }
 
@@ -66,7 +66,7 @@ static int32 BackgroundUpdateChecker(void* data) {
             sscanf(currentVersionStr.String(), "%*[^0-9]%d.%d.%d", &curMajor, &curMinor, &curRevision);
         }
 
-        if (sscanf(remoteVersionStr.String(), "%*[^v]v%d.%d.%d", &remMajor, &remMinor, &remRevision) != 3) {
+        if (sscanf(remoteVersionStr.String(), "%*[^0-9]%d.%d.%d", &remMajor, &remMinor, &remRevision) != 3) {
             sscanf(remoteVersionStr.String(), "%*[^0-9]%d.%d.%d", &remMajor, &remMinor, &remRevision);
         }
 
@@ -274,7 +274,7 @@ private:
         system("pkgman uninstall -y nebula");
         
         _PostProgressUpdate(30.0, "Deploying baseline software fallback dependencies...");
-        system("pkgman install -y mesa_swpipe mesa_lavapipe");
+        system("pkgman install -y mesa_devel glu_devel mesa_swpipe mesa_lavapipe glew_devel mpv_devel");
         
         _PostProgressUpdate(30.0, "Removing libglvnd infrastructure...");
         system("pkgman uninstall -y libglvnd");
@@ -295,63 +295,83 @@ private:
     void _WorkerNebulaStack() {
         system("mkdir -p /tmp/nebula_setup");
 
-        const char* pathGlvnd = "/tmp/libglvnd-1.7.0-4-x86_64.hpkg";
-        const char* pathNebula = "/tmp/nebula-0.0.2-1.x86_64.hpkg";
+        const char* downloadsGlvnd = "/boot/home/Downloads/libglvnd-1.7.0-4-x86_64.hpkg";
+        const char* downloadsNebula = "/boot/home/Downloads/nebula-0.0.2-1.x86_64.hpkg";
+
+        const char* tmpGlvnd = "/tmp/libglvnd-1.7.0-4-x86_64.hpkg";
+        const char* tmpNebula = "/tmp/nebula-0.0.2-1.x86_64.hpkg";
 
         const char* hashGlvnd = "0a4dba881e0a3c3f60a82cef84b7668a919569d8d880ee9011855b8539cb355b";
         const char* hashNebula = "2b9ba0fc817143502670073283f06d160e71aedeb101ab47616147641f51e763";
 
-        struct stat glvndStat;
-        bool glvndExistsAndValid = (stat(pathGlvnd, &glvndStat) == 0) && _VerifyFileHash(pathGlvnd, hashGlvnd);
+        BString activeGlvndPath;
+        BString activeNebulaPath;
 
-        if (glvndExistsAndValid) {
-            _PostProgressUpdate(10.0, "Found cached libglvnd framework package. Skipping download.");
-            snooze(300000); 
+        // --- libglvnd verification & retrieval ---
+        struct stat glvndStat;
+        if (stat(downloadsGlvnd, &glvndStat) == 0 && _VerifyFileHash(downloadsGlvnd, hashGlvnd)) {
+            _PostProgressUpdate(10.0, "Found cached libglvnd framework package in Downloads. Skipping download.");
+            activeGlvndPath = downloadsGlvnd;
+            snooze(300000);
+        } else if (stat(tmpGlvnd, &glvndStat) == 0 && _VerifyFileHash(tmpGlvnd, hashGlvnd)) {
+            _PostProgressUpdate(10.0, "Found cached libglvnd framework package in /tmp. Skipping download.");
+            activeGlvndPath = tmpGlvnd;
+            snooze(300000);
         } else {
-            unlink(pathGlvnd);
+            unlink(tmpGlvnd);
             _PostProgressUpdate(10.0, "Downloading official libglvnd framework package...");
             BString downloadGlvndCmd;
-            downloadGlvndCmd.SetToFormat("curl -L --fail --retry 3 --connect-timeout 15 -o %s %s", pathGlvnd, kUrlGlvnd);
+            downloadGlvndCmd.SetToFormat("curl -L --fail --retry 3 --connect-timeout 15 -o %s %s", tmpGlvnd, kUrlGlvnd);
             
             if (system(downloadGlvndCmd.String()) != 0) {
                 _PostTaskFinished("Error: libglvnd download failed. Check network link.", true);
                 return;
             }
+            activeGlvndPath = tmpGlvnd;
         }
 
+        // --- nebula verification & retrieval ---
         struct stat nebulaStat;
-        bool nebulaExistsAndValid = (stat(pathNebula, &nebulaStat) == 0) && _VerifyFileHash(pathNebula, hashNebula);
-
-        if (nebulaExistsAndValid) {
-            _PostProgressUpdate(25.0, "Found cached NVIDIA Nebula kernel package. Skipping download.");
+        if (stat(downloadsNebula, &nebulaStat) == 0 && _VerifyFileHash(downloadsNebula, hashNebula)) {
+            _PostProgressUpdate(25.0, "Found cached NVIDIA Nebula kernel package in Downloads. Skipping download.");
+            activeNebulaPath = downloadsNebula;
+            snooze(300000);
+        } else if (stat(tmpNebula, &nebulaStat) == 0 && _VerifyFileHash(tmpNebula, hashNebula)) {
+            _PostProgressUpdate(25.0, "Found cached NVIDIA Nebula kernel package in /tmp. Skipping download.");
+            activeNebulaPath = tmpNebula;
             snooze(300000);
         } else {
-            unlink(pathNebula);
+            unlink(tmpNebula);
             _PostProgressUpdate(25.0, "Downloading official NVIDIA Nebula kernel package...");
             BString downloadNebulaCmd;
-            downloadNebulaCmd.SetToFormat("curl -L --fail --retry 3 --connect-timeout 15 -o %s %s", pathNebula, kUrlNebula2);
+            downloadNebulaCmd.SetToFormat("curl -L --fail --retry 3 --connect-timeout 15 -o %s %s", tmpNebula, kUrlNebula2);
             
             if (system(downloadNebulaCmd.String()) != 0) {
                 _PostTaskFinished("Error: Nebula download failed. Check network link.", true);
                 return;
-            }	    
+            }
+            activeNebulaPath = tmpNebula;
         }
 
         _PostProgressUpdate(15.0, "Verifying cryptographic signatures...");
-        if (!_VerifyFileHash(pathGlvnd, hashGlvnd) || !_VerifyFileHash(pathNebula, hashNebula)) {
+        if (!_VerifyFileHash(activeGlvndPath.String(), hashGlvnd) || !_VerifyFileHash(activeNebulaPath.String(), hashNebula)) {
             system("rm -f /tmp/libglvnd-1.7.0-4-x86_64.hpkg /tmp/nebula-0.0.2-1.x86_64.hpkg");
             _PostTaskFinished("Error: Download verification failed. Package hash is corrupt.", true);
             return;
         }
 
         _PostProgressUpdate(15.0, "Deploying verified libglvnd framework package...");
-        system("pkgman install -y /tmp/libglvnd-1.7.0-4-x86_64.hpkg");	
+        BString installGlvndCmd;
+        installGlvndCmd.SetToFormat("pkgman install -y %s", activeGlvndPath.String());
+        system(installGlvndCmd.String());
 
         _PostProgressUpdate(10.0, "Purging conflicting software Mesa frameworks...");
-        system("pkgman uninstall -y mesa mesa_lavapipe");	    
+        system("pkgman uninstall -y mesa mesa_lavapipe");    
         
         _PostProgressUpdate(10.0, "Deploying verified NVIDIA Nebula driver stack...");
-        system("pkgman install -y /tmp/nebula-0.0.2-1.x86_64.hpkg");	
+        BString installNebulaCmd;
+        installNebulaCmd.SetToFormat("pkgman install -y %s", activeNebulaPath.String());
+        system(installNebulaCmd.String());
         
         _PostTaskFinished("Successfully initialized NVIDIA Nebula graphics drivers from official repository.");
     }
