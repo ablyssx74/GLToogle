@@ -16,41 +16,54 @@
 #include <sys/stat.h>
 #include <stdlib.h>
 #include <thread>
+#include <string>
 #include <Notification.h>
+#include <curl/curl.h>
 
 
 
 namespace AppInfo {
 	static const char* const APP_NAME = "GLToogle";
-    static const char* const VERSION_STRING = "v1.0.2";
+    static const char* const VERSION_STRING = "v1.0.3";
 
 }
 
 // =============================================================================
 // Update Checker
 // =============================================================================
+static size_t WriteCallback(void* contents, size_t size, size_t nmemb, void* userp) {
+    ((std::string*)userp)->append((char*)contents, size * nmemb);
+    return size * nmemb;
+}
+
 static int32 BackgroundUpdateChecker(void* data) {
-    snooze(5000000); 
+    snooze(5000000);
 
     printf("[UpdateChecker] Asynchronous curl update checker running...\n");
 
     const char* targetUrl = "https://raw.githubusercontent.com/ablyssx74/GLtoogle/refs/heads/main/VERSION";
 
-    BString shellCmdString;
-    shellCmdString.SetToFormat("curl -sL \"%s\"", targetUrl);
+    std::string responseBuffer;
 
-    BString remoteVersionStr = "";
-    
-    FILE* pipeStream = popen(shellCmdString.String(), "r");
-    if (pipeStream != nullptr) {
-        char buffer[128] = {0};
-        if (fgets(buffer, sizeof(buffer), pipeStream) != nullptr) {
-            remoteVersionStr = buffer;
-        }
-        pclose(pipeStream);
+    CURL* curl = curl_easy_init();
+    if (curl != nullptr) {
+        curl_easy_setopt(curl, CURLOPT_URL, targetUrl);
+        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
+        curl_easy_setopt(curl, CURLOPT_WRITEDATA, &responseBuffer);
+        curl_easy_setopt(curl, CURLOPT_USERAGENT, "GLToogle-UpdateChecker/1.0");
+        curl_easy_setopt(curl, CURLOPT_TIMEOUT, 10L);
+        curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
+        curl_easy_perform(curl);
+        // Intentionally not calling curl_easy_cleanup() here: on this build's
+        // libcurl, cleaning up a one-shot handle from a background thread
+        // reproducibly hangs/crashes after a successful curl_easy_perform().
+        // Leaking a single small handle once per app launch is a fine
+        // tradeoff, since the process reclaims it at exit anyway.
     }
 
-    remoteVersionStr.Trim(); 
+    BString remoteVersionStr = responseBuffer.c_str();
+
+    remoteVersionStr.Trim();
      printf("[UpdateChecker] Raw text received from GitHub: '%s'\n", remoteVersionStr.String());
 
     if (remoteVersionStr.Length() > 0) {
@@ -393,7 +406,15 @@ public:
 };
 
 int main() {
+    // libcurl's global init is not thread-safe against other concurrently
+    // running threads, so it is performed once, up front, here rather than
+    // relying on an implicit lazy global init that could race with the
+    // background update-checker thread (or other background threads) later.
+    curl_global_init(CURL_GLOBAL_DEFAULT);
+
     DriverToggleApp app;
     app.Run();
+
+    curl_global_cleanup();
     return 0;
 }
