@@ -24,7 +24,7 @@
 
 namespace AppInfo {
 	static const char* const APP_NAME = "GLToogle";
-    static const char* const VERSION_STRING = "v1.0.3";
+    static const char* const VERSION_STRING = "v1.0.4";
 
 }
 
@@ -54,11 +54,7 @@ static int32 BackgroundUpdateChecker(void* data) {
         curl_easy_setopt(curl, CURLOPT_TIMEOUT, 10L);
         curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
         curl_easy_perform(curl);
-        // Intentionally not calling curl_easy_cleanup() here: on this build's
-        // libcurl, cleaning up a one-shot handle from a background thread
-        // reproducibly hangs/crashes after a successful curl_easy_perform().
-        // Leaking a single small handle once per app launch is a fine
-        // tradeoff, since the process reclaims it at exit anyway.
+        curl_easy_cleanup(curl);
     }
 
     BString remoteVersionStr = responseBuffer.c_str();
