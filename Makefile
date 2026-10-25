@@ -8,11 +8,17 @@ URLS = https:\/\/github.com\/ablyssx74\/$(TARGET)
 REQUIRES = haiku\n    curl\n     
 PACKAGER = $(AUTHOR) <$(TARGET)@epluribusunix.net>
 VENDOR = epluribusunix.net Project
-VERSION = 1.0.4
+# The one place a release changes is the VERSION file: the program (and its update check), the package and the
+# resource all take it from there.
+VERSION := $(shell sed -n 's/.*\([0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\).*/\1/p' VERSION | head -1)
+V_MAJOR := $(word 1,$(subst ., ,$(VERSION)))
+V_MIDDLE := $(word 2,$(subst ., ,$(VERSION)))
+V_MINOR := $(word 3,$(subst ., ,$(VERSION)))
 REVISION = 1
 PACKAGE_DIR := build/package
 CXX = g++
 CXXFLAGS = -std=c++17 -O3 -Wall
+CXXFLAGS += -DAPP_LOCAL_VERSION=\"$(VERSION)\"
 INCLUDES = 
 ARCH = x86_64
 
@@ -42,14 +48,19 @@ ifeq ($(HAS_RDEF), yes)
 endif
 	mimeset -f $(TARGET)
 
-%.rsrc: %.rdef
-	rc -o $@ $<
+# The resource has its version fields filled in from VERSION
+%.rsrc: %.rdef VERSION
+	sed -e 's/@V_MAJOR@/$(V_MAJOR)/' -e 's/@V_MIDDLE@/$(V_MIDDLE)/' -e 's/@V_MINOR@/$(V_MINOR)/' -e 's/@VERSION@/$(VERSION)/' $< > $*.version.rdef
+	rc -o $@ $*.version.rdef
+
+# The version is compiled in: a new VERSION means a new build of the file that shows it
+GLToogle.o: VERSION
 
 %.o: %.cpp
 	$(CXX) $(CXXFLAGS) $(INCLUDES) -c $< -o $@
 
 clean:
-	rm -f *.o *.rsrc *.hpkg $(TARGET) 
+	rm -f *.o *.rsrc *.version.rdef *.hpkg $(TARGET) 
 	rm -rf build
 
 
